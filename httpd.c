@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
     int start = 0;          // flag of start
     int fd_servsock = 0;    // file descriptor of server socket
     int max_conn = DEFAULT_MAXCONN;      // max connection
-    int i_argu;    int fd_cliesock = 0;
+    int i_argu;
     pthread_t tid_mon;
 
     if (argc == 1 || (argc == 2 && !strcmp(argv[1], "-h")))
