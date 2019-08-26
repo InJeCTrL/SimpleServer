@@ -139,7 +139,10 @@ int procConn(int fd_servsock, int flag_log)
     socklen_t len_cfd = sizeof(struct sockaddr);
     int fd_cliesock;     // file descriptor of client socket
     pthread_t tid;
+    pthread_attr_t attr_th;
 
+    pthread_attr_init(&attr_th);
+    pthread_attr_setdetachstate(&attr_th, PTHREAD_CREATE_DETACHED);
     while (1)
     {
         if ((fd_cliesock = accept(fd_servsock, (struct sockaddr*)&sca, &len_cfd)) < 0)
@@ -152,7 +155,7 @@ int procConn(int fd_servsock, int flag_log)
                 printf("log >> new client socket!\n");
             tStru.fd = fd_cliesock;
             tStru.flag = flag_log;
-            pthread_create(&tid, NULL, procRequest, (void*)&tStru);
+            pthread_create(&tid, &attr_th, procRequest, (void*)&tStru);
         }
     }
 
@@ -174,7 +177,7 @@ int initSocket(int *fd_servsock, int flag_log, int port, int max_conn)
     memset(&ssa,0,sizeof(struct sockaddr_in));
     ssa.sin_addr.s_addr = htonl(INADDR_ANY);
     ssa.sin_family = AF_INET;
-    ssa.sin_port = htons(80);
+    ssa.sin_port = htons(port);
     if (bind(_fd, (struct sockaddr*)&ssa,sizeof(struct sockaddr)) < 0)
     {
         perror("log >> fail to bind address");
@@ -195,23 +198,6 @@ int initSocket(int *fd_servsock, int flag_log, int port, int max_conn)
     return S_OK;
 }
 
-void* Mon(void *data)
-{
-    unsigned char cmd[10] = { 0 };
-
-    while (1)
-    {
-        scanf("%s", cmd);
-        if(!strncmp(cmd, "stop", 4))
-        {
-            close(*((int*)data));
-            exit(0);
-        }
-    }
-
-    return S_OK;
-}
-
 int main(int argc, char *argv[])
 {
     int flag_log = 0;       // flag of log output
@@ -219,12 +205,10 @@ int main(int argc, char *argv[])
     int fd_servsock = 0;    // file descriptor of server socket
     int max_conn = DEFAULT_MAXCONN;      // max connection
     int i_argu;
-    pthread_t tid_mon;
 
     if (argc == 1 || (argc == 2 && !strcmp(argv[1], "-h")))
     {
         printf("Put website file under ./www and start the server.\n"
-                "Input \"stop\" to end while server is running.\n"
                 "start:\t\tstart server\n"
                 "-l:\t\tenable log output\n"
                 "-c [digit]:\tset max connection\n"
@@ -232,6 +216,7 @@ int main(int argc, char *argv[])
     }
     else
     {
+	
         for (i_argu = 1; i_argu < argc; i_argu++)
         {
             if (!strcmp(argv[i_argu], "-l"))
@@ -246,9 +231,8 @@ int main(int argc, char *argv[])
         }
         if (start)
         {
-            if (initSocket(&fd_servsock, flag_log, 8080, max_conn) == S_FAIL)
+            if (initSocket(&fd_servsock, flag_log, 80, max_conn) == S_FAIL)
                 return S_FAIL;
-            pthread_create(&tid_mon, NULL, Mon, (void*)&fd_servsock);
             procConn(fd_servsock, flag_log);
         }
     }
