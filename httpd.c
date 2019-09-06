@@ -21,29 +21,44 @@ typedef struct
     int flag;
 } connInfo;
 
-int SendResponse(int fd_cliesock, int errCode)
+int SendResponse(int fd_cliesock, int errCode, unsigned char *_buf)
 {
     unsigned char buf[BUFFSIZE] = { 0 };
+    unsigned char contentType[100] = { 0 };
+    unsigned char *p_accept = strstr(_buf, "Accept: ");
 
+    // set other content type
+    if (p_accept)
+    {
+        p_accept += 8;
+        unsigned char *sp = strstr(p_accept, ",");
+        memcpy(contentType, p_accept, sp - p_accept);
+    }
     switch (errCode)
     {
     case 200:
         strcpy(buf, "HTTP/1.1 200 OK\r\n"
                     "Cache Control: private\r\n"
-                    "content-type: text/html\r\n"
+                    "content-type: ");
+        strcat(buf, contentType);
+        strcat(buf, "\r\n"
                     "Server: SimpleServer\r\n\r\n");
         break;
     case 501:
         strcpy(buf, "HTTP/1.1 501 Not Implemented\r\n"
                     "Cache Control: private\r\n"
-                    "content-type: text/html\r\n"
+                    "content-type: ");
+        strcat(buf, contentType);
+        strcat(buf, "\r\n"
                     "Server: SimpleServer\r\n\r\n"
                     "<html><h1>501 Method Not Implemented!</h1><hr>SimpleServer</html>");
         break;
     case 404:
         strcpy(buf, "HTTP/1.1 404 Not Found\r\n"
                     "Cache Control: private\r\n"
-                    "content-type: text/html\r\n"
+                    "content-type: ");
+        strcat(buf, contentType);
+        strcat(buf, "\r\n"
                     "Server: SimpleServer\r\n\r\n"
                     "<html><h1>404 Not Found!</h1><hr>SimpleServer</html>");
         break;
@@ -72,12 +87,12 @@ int procResponse(int fd_cliesock, int flag_log, unsigned char buf[])
         if (S_ISDIR(pathinfo.st_mode))
             strcat(path, "/index.html");
         // open file and send
-        pf = fopen(path, "r");
+        pf = fopen(path, "rb");
         if (!pf)
-            SendResponse(fd_cliesock, 404);
+            SendResponse(fd_cliesock, 404, buf);
         else
         {
-            SendResponse(fd_cliesock, 200);
+            SendResponse(fd_cliesock, 200, buf);
             while ((len_content = fread(content, sizeof(unsigned char), BUFFSIZE, pf)) > 0)
             {
                 send(fd_cliesock, content, len_content, 0);
@@ -93,12 +108,12 @@ int procResponse(int fd_cliesock, int flag_log, unsigned char buf[])
         if (S_ISDIR(pathinfo.st_mode))
             strcat(path, "/index.html");
         // open file and send
-        pf = fopen(path, "r");
+        pf = fopen(path, "rb");
         if (!pf)
-            SendResponse(fd_cliesock, 404);
+            SendResponse(fd_cliesock, 404, buf);
         else
         {
-            SendResponse(fd_cliesock, 200);
+            SendResponse(fd_cliesock, 200, buf);
             while ((len_content = fread(content, sizeof(unsigned char), BUFFSIZE, pf)) > 0)
             {
                 send(fd_cliesock, content, len_content, 0);
@@ -108,7 +123,7 @@ int procResponse(int fd_cliesock, int flag_log, unsigned char buf[])
     }
     else
     {
-        SendResponse(fd_cliesock, 501);
+        SendResponse(fd_cliesock, 501, buf);
     }
 
     return S_OK;
@@ -165,6 +180,7 @@ int procConn(int fd_servsock, int flag_log)
 int initSocket(int *fd_servsock, int flag_log, int port, int max_conn)
 {
     struct sockaddr_in ssa; // record addr(server)
+    int nOptval = 1;
     int _fd;
 
     if ((_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0)
@@ -174,6 +190,7 @@ int initSocket(int *fd_servsock, int flag_log, int port, int max_conn)
     }
     else if (flag_log)
         printf("log >> create socket!\n");
+    setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, (void*)&nOptval, sizeof(int));
     memset(&ssa,0,sizeof(struct sockaddr_in));
     ssa.sin_addr.s_addr = htonl(INADDR_ANY);
     ssa.sin_family = AF_INET;
